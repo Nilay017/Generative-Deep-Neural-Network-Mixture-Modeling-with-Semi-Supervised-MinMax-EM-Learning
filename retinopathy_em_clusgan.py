@@ -41,10 +41,11 @@ except ImportError as e:
 
 parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
 #Change
-parser.add_argument("-r", "--run_name", dest="run_name", default='cifar10_train_clusgan_5_all', help="Name of training run")
+parser.add_argument("-r", "--run_name", dest="run_name", default='retinopathy_with_cluster_weights_initialized_train_clusgan_3_all', help="Name of training run")
 parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=500, type=int, help="Number of epochs")
 parser.add_argument("-b", "--batch_size", dest="batch_size", default=200, type=int, help="Batch size")
-parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='cifar10', choices=dataset_list,  help="Dataset name")
+#Change
+parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='Diabetic_Retinopathy', choices=dataset_list,  help="Dataset name")
 parser.add_argument("-w", "--wass_metric", dest="wass_metric", action='store_true', help="Flag for Wasserstein metric")
 parser.add_argument("-g", "-–gpu", dest="gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument("-k", "-–num_workers", dest="num_workers", default=1, type=int, help="Number of dataset workers")
@@ -66,7 +67,7 @@ def get_centers(num_clusters, latent_dim, sigma, dtype=torch.float32):
 	return centers
 
 def run_main(seed):
-    # python3 cifar10_em_clusgan.py -n 600 -g 1 -sup 0.0 -seed 0.0
+    # python3 retinopathy_em_clusgan.py -n 600 -g 1 -sup 0.0 -seed 0.0
     global args
     run_name = args.run_name
     dataset_name = args.dataset_name
@@ -101,11 +102,10 @@ def run_main(seed):
     channels = 3
    
     # Latent space info
-    # datafile_path = "./MNIST_1000_121.pkl"
-    # datafile_path = "./Output_data_processing/kmeans_clustering_data_10_" + str(given_supervision_level) + ".pkl"
     # Change
-    datafile_path = "./Output_data_processing/CIFAR10_kmeans_clustering_data_5_" + str(given_supervision_level) + "_seed_" + str(int(seed)) + ".pkl"
-    # datafile_path = "./Output_data_processing/kmeans_clustering_data_3_" + str(given_supervision_level) + ".pkl"
+    datafile_path = "./Output_data_processing/Diabetic_Retinopathy_zero_idx_kmeans_clustering_data_3_"\
+     + str(given_supervision_level) + "_seed_" + str(int(seed)) + ".pkl"
+
     with open(datafile_path, 'rb') as f:	
         preprocessed_data = pkl.load(f)
 
@@ -125,7 +125,8 @@ def run_main(seed):
     betan = 3
     betac = 3
     beta = 1
-   
+
+	# Change ?   
     finaldata = data.to(torch.uint8).clone()
     myfinaldata = finaldata.transpose(3, 2).transpose(2, 1)
     finallabels = actual_labels.clone()
@@ -171,7 +172,7 @@ def run_main(seed):
     mse_loss = torch.nn.MSELoss()
     
     # Initialize generator and discriminator
-    model_loadpath = '/home/nilay/clusterGAN-master_2/runs/cifar10/cifar10_pretraining_supervision_'
+    model_loadpath = '/home/nilay/clusterGAN-master_2/runs/Diabetic_Retinopathy/retinopathy_pretraining_supervision_'
     if supervision_level == 0.99:
         model_loadpath += str(supervision_level) + '0000'
     else:
@@ -181,7 +182,7 @@ def run_main(seed):
     # assert(supervision_level == 0.0)
     
     #Change
-    model_loadpath += "__epoch_400____van___12-10___seed_" + str(int(seed)) + "__cifar10_pretrain_clusgan_5_all/models/"
+    model_loadpath += "__epoch_400____van___02-05___seed_" + str(int(seed)) + "__retinopathy_pretrain_clusgan_3_all/models/"
 
     print(model_loadpath)
     print("!!!!!!!!!!!!!!!!")
@@ -205,7 +206,7 @@ def run_main(seed):
         
     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
     #Change
-    log_final_results = open("train_clusgan_CIFAR10_5_digits_semi_sup_" + str(supervision_level) + "_seed_" + str(seed), "a+")
+    log_final_results = open("train_clusgan_retinopathy_3_digits_semi_sup_" + str(supervision_level) + "_seed_" + str(seed), "a+")
      
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
     optimizer_E = torch.optim.Adam(encoder.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
@@ -235,7 +236,9 @@ def run_main(seed):
     log_final_results.write("Gamma: " + str(gamma) + " \n")
     log_final_results.write("DGamma: " + str(d_gamma) + " \n")
 
-    cluster_weights = torch.ones([num_clusters]).to(torch.float).cuda()
+    #change
+    # cluster_weights = torch.ones([num_clusters]).to(torch.float).cuda()
+    cluster_weights = torch.tensor([1000., 1000., 353.]).to(torch.float).cuda()
     cluster_weights = cluster_weights / torch.sum(cluster_weights)
 
     print('\nBegin training session with %i epochs...\n'%(n_epochs))
@@ -513,15 +516,15 @@ def run_main(seed):
         r_imgs, i_label = real_imgs.data[:n_samp], itruth_label[:n_samp]
         e_z = encoder(r_imgs)
         reg_imgs = generator(e_z)
-        save_image(r_imgs.data[:n_samp],
-                   '%s/actual_train_real_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
-        save_image(reg_imgs.data[:n_samp],
-                   '%s/actual_train_reg_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
-        save_image(gen_imgs_samp.data[:n_samp],
-                   '%s/actual_train_gen_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
+        # save_image(r_imgs.data[:n_samp],
+        #            '%s/actual_train_real_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
+        # save_image(reg_imgs.data[:n_samp],
+        #            '%s/actual_train_reg_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
+        # save_image(gen_imgs_samp.data[:n_samp],
+        #            '%s/actual_train_gen_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
         
         ## Generate samples for specified classes
         stack_imgs = []
@@ -538,9 +541,9 @@ def run_main(seed):
                 stack_imgs = torch.cat((stack_imgs, gen_imgs_samp), 0)
 
         # Save class-specified generated examples!
-        save_image(stack_imgs,
-                   '%s/actual_gen_classes_%06i.png' %(imgs_dir, epoch), 
-                   nrow=num_clusters, normalize=True)
+        # save_image(stack_imgs,
+        #            '%s/actual_gen_classes_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=num_clusters, normalize=True)
      
 
         print ("[Epoch %d/%d] \n"\
@@ -650,7 +653,7 @@ def run_main(seed):
     model_list = [discriminator, encoder, generator]
     save_model(models=model_list, out_dir=models_dir)
 
-    return final_accuracy, final_ARI, final_NMI
+    return final_accuracy, final_ARI, final_NMI, cluster_weights
 
 
 if __name__ == "__main__":
@@ -659,15 +662,16 @@ if __name__ == "__main__":
     seed = args.seed
     seeds = [seed]
     #Change
-    log_final_results_metrics = open("metrics_train_clusgan_CIFAR10_5_digits_semi_sup_" + str(args.supervision_level), "a+")
+    log_final_results_metrics = open("metrics_train_clusgan_retinopathy_3_digits_semi_sup_" + str(args.supervision_level), "a+")
     log_final_results_metrics.write('Supervision : ' + str(args.supervision_level) + '\n')
     final_dict = {}
     for seed in seeds:
         final_dict[seed] = {}
-        acc, ari, nmi = run_main(seed)
+        acc, ari, nmi, cluster_weights = run_main(seed)
         final_dict[seed]['acc'] = acc
         final_dict[seed]['nmi'] = nmi
         final_dict[seed]['ari'] = ari
+        final_dict[seed]['cluster_weights'] = cluster_weights
 
         log_final_results_metrics.write('Seed : ' + str(seed) + '\n')
         log_final_results_metrics.write('Accuracy : ' + str(acc) + '\n')
@@ -676,5 +680,5 @@ if __name__ == "__main__":
     
 
     #Change
-    pkl.dump(final_dict, open( './new_cifar10_final_dict_5_' + str(args.supervision_level) + '_seed_' + str(seed) + '.pkl', "wb"), protocol=pkl.HIGHEST_PROTOCOL)
-    print("Dumping into  ./new_cifar10_final_dict_5_" + str(args.supervision_level) + '_seed_' + str(seed) + ".pkl")
+    pkl.dump(final_dict, open( './new_retinopathy_final_dict_5_' + str(args.supervision_level) + '_seed_' + str(seed) + '.pkl', "wb"), protocol=pkl.HIGHEST_PROTOCOL)
+    print("Dumping into  ./new_retinopathy_final_dict_5_" + str(args.supervision_level) + '_seed_' + str(seed) + ".pkl")

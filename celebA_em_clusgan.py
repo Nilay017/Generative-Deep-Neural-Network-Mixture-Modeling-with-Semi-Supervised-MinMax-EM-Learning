@@ -41,13 +41,13 @@ except ImportError as e:
 
 parser = argparse.ArgumentParser(description="Convolutional NN Training Script")
 #Change
-parser.add_argument("-r", "--run_name", dest="run_name", default='cifar10_train_clusgan_5_all', help="Name of training run")
+parser.add_argument("-r", "--run_name", dest="run_name", default='noisy_all_chan_sigma_0.2_celebA_train_clusgan_5_all', help="Name of training run")
 parser.add_argument("-n", "--n_epochs", dest="n_epochs", default=500, type=int, help="Number of epochs")
 parser.add_argument("-b", "--batch_size", dest="batch_size", default=200, type=int, help="Batch size")
-parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='cifar10', choices=dataset_list,  help="Dataset name")
+parser.add_argument("-s", "--dataset_name", dest="dataset_name", default='celebA', choices=dataset_list,  help="Dataset name")
 parser.add_argument("-w", "--wass_metric", dest="wass_metric", action='store_true', help="Flag for Wasserstein metric")
 parser.add_argument("-g", "-–gpu", dest="gpu", default=0, type=int, help="GPU id to use")
-parser.add_argument("-k", "-–num_workers", dest="num_workers", default=1, type=int, help="Number of dataset workers")
+parser.add_argument("-k", "-–num_workers", dest="num_workers", default=0, type=int, help="Number of dataset workers")
 parser.add_argument("-sup", "--supervision_level", dest="supervision_level", default=0.2, type=float, help="supervision_level")
 parser.add_argument("-seed", "--seed", dest="seed", default=0., type=float, help="seed for experiments")
 parser.add_argument("-gamma", "--gamma", dest="gamma", default=1.0, type=float, help="Gamma")
@@ -66,14 +66,12 @@ def get_centers(num_clusters, latent_dim, sigma, dtype=torch.float32):
 	return centers
 
 def run_main(seed):
-    # python3 cifar10_em_clusgan.py -n 600 -g 1 -sup 0.0 -seed 0.0
+    # python3 celebA_em_clusgan.py -n 600 -g 0 -sup 0.0 -seed 0.0
     global args
     run_name = args.run_name
     dataset_name = args.dataset_name
     device_id = args.gpu
     num_workers = args.num_workers
-    # given_supervision_level = args.supervision_level
-    # seed = args.seed
     gamma = args.gamma
     d_gamma = args.dgamma
     n_epochs = args.n_epochs
@@ -100,12 +98,10 @@ def run_main(seed):
     img_size = 32
     channels = 3
    
-    # Latent space info
-    # datafile_path = "./MNIST_1000_121.pkl"
-    # datafile_path = "./Output_data_processing/kmeans_clustering_data_10_" + str(given_supervision_level) + ".pkl"
+    
     # Change
-    datafile_path = "./Output_data_processing/CIFAR10_kmeans_clustering_data_5_" + str(given_supervision_level) + "_seed_" + str(int(seed)) + ".pkl"
-    # datafile_path = "./Output_data_processing/kmeans_clustering_data_3_" + str(given_supervision_level) + ".pkl"
+    datafile_path = "./Output_data_processing/Noisy_all_chan_CelebA_sigma_0.2_kmeans_clustering_data_5_" + str(given_supervision_level) + "_seed_" + str(int(seed)) + ".pkl"
+
     with open(datafile_path, 'rb') as f:	
         preprocessed_data = pkl.load(f)
 
@@ -126,24 +122,22 @@ def run_main(seed):
     betac = 3
     beta = 1
    
-    finaldata = data.to(torch.uint8).clone()
-    myfinaldata = finaldata.transpose(3, 2).transpose(2, 1)
+    # Change
+    finaldata = data.clone().to(dtype)
+    finaldata = (finaldata*0.50000) + 0.500000
+    myfinaldata = finaldata.clone()
     finallabels = actual_labels.clone()
 
     num_images = finaldata.shape[0]
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-     
-    # Wasserstein metric flag
     # Wasserstein metric flag
     mtype = 'van'
     if (wass_metric):
         mtype = 'wass'
     
     # Make directory structure for this run
-    time_stamp = datetime.datetime.fromtimestamp(time.time()).strftime('%m-%d-%H-%M')
+    # Change
+    time_stamp = datetime.datetime.fromtimestamp(time.time()).strftime('%m-%d')
     sep_und = '_'
     run_name_comps = ['training_supervision_%f_'%supervision_level,'epoch_%i_'%n_epochs, '_', mtype, '_', time_stamp, '_', 'seed_%i_'%seed, run_name]
     run_name = sep_und.join(run_name_comps)
@@ -171,7 +165,7 @@ def run_main(seed):
     mse_loss = torch.nn.MSELoss()
     
     # Initialize generator and discriminator
-    model_loadpath = '/home/nilay/clusterGAN-master_2/runs/cifar10/cifar10_pretraining_supervision_'
+    model_loadpath = '/home/nilay/clusterGAN-master_2/runs/celebA/celebA_pretraining_supervision_'
     if supervision_level == 0.99:
         model_loadpath += str(supervision_level) + '0000'
     else:
@@ -179,9 +173,8 @@ def run_main(seed):
     
     # model_loadpath += str(0.6) + '00000'
     # assert(supervision_level == 0.0)
-    
     #Change
-    model_loadpath += "__epoch_400____van___12-10___seed_" + str(int(seed)) + "__cifar10_pretrain_clusgan_5_all/models/"
+    model_loadpath += "__epoch_400____van___01-29___seed_" + str(int(seed)) + "__noisy_all_chan_sigma_0.2_celebA_pretrain_clusgan_5_all/models/"
 
     print(model_loadpath)
     print("!!!!!!!!!!!!!!!!")
@@ -205,7 +198,7 @@ def run_main(seed):
         
     Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
     #Change
-    log_final_results = open("train_clusgan_CIFAR10_5_digits_semi_sup_" + str(supervision_level) + "_seed_" + str(seed), "a+")
+    log_final_results = open("train_clusgan_noisy_all_chan_sigma_0.2_CelebA_5_digits_semi_sup_" + str(supervision_level) + "_seed_" + str(seed), "a+")
      
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
     optimizer_E = torch.optim.Adam(encoder.parameters(), lr=lr, betas=(b1, b2), weight_decay=decay)
@@ -248,15 +241,6 @@ def run_main(seed):
     dataMNIST_only_unlabelled = None
     dataloader_only_unlabelled = None
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-
-    transform2 = transforms.ToPILImage()
-
-    dataMNIST_correct = CustomMNISTdigit(finaldata, finallabels, transform)
-    dataloader_correct = DataLoader(dataMNIST_correct, num_workers=num_workers,  batch_size=batch_size,  shuffle=True)
-
     if supervision_level > 0.0:
         fixed_indices = preprocessed_data['fixed_indices']
         fixed_data_0 = myfinaldata[fixed_indices]
@@ -268,33 +252,23 @@ def run_main(seed):
         assert(fixed_data_0.shape[3] == img_size)
 
         fixed_data = torch.zeros([fixed_data_0.shape[0], channels, img_size, img_size]).type(Tensor)
-        
-        for i in range(fixed_data_0.shape[0]):
-            fixed_data[i] = transform(transform2(fixed_data_0[i]))
+        fixed_data = fixed_data_0.clone().cuda()
         
         indices_to_update = (1  - fixed_indices.to(torch.long)).to(torch.long)
         indices_to_update = indices_to_update == 1
         indices_to_update = indices_to_update.to(torch.bool)
-        dataMNIST_only_unlabelled = CustomMNISTdigit(finaldata[indices_to_update], finallabels[indices_to_update], transform)
-        # dataloader_only_unlabelled = DataLoader(dataMNIST_correct, num_workers=num_workers,  batch_size=batch_size,  shuffle=True)
+        # Change
+        dataMNIST_only_unlabelled = CustomMNISTdigit(finaldata[indices_to_update], finallabels[indices_to_update], None)
         dataloader_only_unlabelled = DataLoader(dataMNIST_only_unlabelled, num_workers=num_workers,  batch_size=batch_size,  shuffle=True)
     else:
-        dataMNIST_only_unlabelled = CustomMNISTdigit(finaldata, finallabels, transform)
-        # dataloader_only_unlabelled = DataLoader(dataMNIST_correct, num_workers=num_workers,  batch_size=batch_size,  shuffle=True)
+        dataMNIST_only_unlabelled = CustomMNISTdigit(finaldata, finallabels, None)
         dataloader_only_unlabelled = DataLoader(dataMNIST_only_unlabelled, num_workers=num_workers,  batch_size=batch_size,  shuffle=True)
 
-    t_imgs, t_label = myfinaldata.clone(), finallabels.clone()
+    t_imgs, t_label = myfinaldata.clone().cuda(), finallabels.clone()
     
     assert(t_imgs.shape[1] == channels)
     assert(t_imgs.shape[2] == img_size)
     assert(t_imgs.shape[3] == img_size)
-
-    test_data = torch.zeros([t_imgs.shape[0], channels, img_size, img_size]).type(Tensor)
-    for i in range(t_imgs.shape[0]):
-        test_data[i] = transform(transform2(t_imgs[i]))
-
-    t_imgs = test_data
-
 
     # n_epochs = 250
     for epoch in range(n_epochs):
@@ -314,6 +288,7 @@ def run_main(seed):
             generator.train()
             encoder.train()
             discriminator.train()
+
             # Zero gradients for models
             generator.zero_grad()
             encoder.zero_grad()
@@ -348,7 +323,7 @@ def run_main(seed):
 
             D_fixed = None
             if supervision_level > 0.0:
-                D_fixed = discriminator(fixed_data.cuda())
+                D_fixed = discriminator(fixed_data)
 
             # -------------------------------
             # EM
@@ -397,7 +372,7 @@ def run_main(seed):
 
                 sup_z_loss = 0.00
                 if supervision_level > 0.0:
-                    sup_z = encoder(fixed_data.cuda())
+                    sup_z = encoder(fixed_data)
                     sup_z_loss = mse_loss(sup_z, cluster_centers[fixed_gt_idx.to(torch.long)].cuda())
 
     
@@ -494,7 +469,7 @@ def run_main(seed):
 
             lat_sup_z_loss = 0.00
             if supervision_level > 0.0:
-                lat_sup_z = encoder(fixed_data.cuda())
+                lat_sup_z = encoder(fixed_data)
                 lat_sup_z_loss = mse_loss(lat_sup_z, cluster_centers[fixed_gt_idx.cuda().to(torch.long)].cuda())
                 per_epoch_latent_sup_loss += lat_sup_z_loss.item()
                 # Check for supervision thoroughly before implementing
@@ -513,15 +488,15 @@ def run_main(seed):
         r_imgs, i_label = real_imgs.data[:n_samp], itruth_label[:n_samp]
         e_z = encoder(r_imgs)
         reg_imgs = generator(e_z)
-        save_image(r_imgs.data[:n_samp],
-                   '%s/actual_train_real_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
-        save_image(reg_imgs.data[:n_samp],
-                   '%s/actual_train_reg_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
-        save_image(gen_imgs_samp.data[:n_samp],
-                   '%s/actual_train_gen_%06i.png' %(imgs_dir, epoch), 
-                   nrow=n_sqrt_samp, normalize=True)
+        # save_image(r_imgs.data[:n_samp],
+        #            '%s/actual_train_real_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
+        # save_image(reg_imgs.data[:n_samp],
+        #            '%s/actual_train_reg_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
+        # save_image(gen_imgs_samp.data[:n_samp],
+        #            '%s/actual_train_gen_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=n_sqrt_samp, normalize=True)
         
         ## Generate samples for specified classes
         stack_imgs = []
@@ -538,9 +513,9 @@ def run_main(seed):
                 stack_imgs = torch.cat((stack_imgs, gen_imgs_samp), 0)
 
         # Save class-specified generated examples!
-        save_image(stack_imgs,
-                   '%s/actual_gen_classes_%06i.png' %(imgs_dir, epoch), 
-                   nrow=num_clusters, normalize=True)
+        # save_image(stack_imgs,
+        #            '%s/actual_gen_classes_%06i.png' %(imgs_dir, epoch), 
+        #            nrow=num_clusters, normalize=True)
      
 
         print ("[Epoch %d/%d] \n"\
@@ -650,7 +625,7 @@ def run_main(seed):
     model_list = [discriminator, encoder, generator]
     save_model(models=model_list, out_dir=models_dir)
 
-    return final_accuracy, final_ARI, final_NMI
+    return final_accuracy, final_ARI, final_NMI, cluster_weights
 
 
 if __name__ == "__main__":
@@ -659,15 +634,16 @@ if __name__ == "__main__":
     seed = args.seed
     seeds = [seed]
     #Change
-    log_final_results_metrics = open("metrics_train_clusgan_CIFAR10_5_digits_semi_sup_" + str(args.supervision_level), "a+")
+    log_final_results_metrics = open("metrics_train_clusgan_noisy_all_chan_sigma_0.2_CelebA_5_digits_semi_sup_" + str(args.supervision_level), "a+")
     log_final_results_metrics.write('Supervision : ' + str(args.supervision_level) + '\n')
     final_dict = {}
     for seed in seeds:
         final_dict[seed] = {}
-        acc, ari, nmi = run_main(seed)
+        acc, ari, nmi, cluster_weights = run_main(seed)
         final_dict[seed]['acc'] = acc
         final_dict[seed]['nmi'] = nmi
         final_dict[seed]['ari'] = ari
+        final_dict[seed]['cluster_weights'] = cluster_weights
 
         log_final_results_metrics.write('Seed : ' + str(seed) + '\n')
         log_final_results_metrics.write('Accuracy : ' + str(acc) + '\n')
@@ -676,5 +652,5 @@ if __name__ == "__main__":
     
 
     #Change
-    pkl.dump(final_dict, open( './new_cifar10_final_dict_5_' + str(args.supervision_level) + '_seed_' + str(seed) + '.pkl', "wb"), protocol=pkl.HIGHEST_PROTOCOL)
-    print("Dumping into  ./new_cifar10_final_dict_5_" + str(args.supervision_level) + '_seed_' + str(seed) + ".pkl")
+    pkl.dump(final_dict, open( './new_noisy_all_chan_sigma_0.2_celebA_final_dict_5_' + str(args.supervision_level) + '_seed_' + str(seed) + '.pkl', "wb"), protocol=pkl.HIGHEST_PROTOCOL)
+    print("Dumping into  ./new_noisy_all_chan_sigma_0.2_celebA_final_dict_5_" + str(args.supervision_level) + '_seed_' + str(seed) + ".pkl")
