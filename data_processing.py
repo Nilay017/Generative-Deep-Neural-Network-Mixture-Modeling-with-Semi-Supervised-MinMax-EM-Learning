@@ -224,7 +224,7 @@ def create_and_store_CIFARdataset(pathstr, class_labels, img_size=32, num_images
 		dataCIFAR = datasets.CIFAR10('data', train=True, download=True, transform=transform)
 	else:
 		dataCIFAR = datasets.CIFAR10(datapath, train=True, download=False, transform=transform)
-	
+
 	originaltargets = torch.tensor(dataCIFAR.targets)
 	originaldata = torch.tensor(dataCIFAR.data)
 
@@ -239,7 +239,7 @@ def create_and_store_CIFARdataset(pathstr, class_labels, img_size=32, num_images
 		data = torch.cat((data, originaldata[idx]), 0)
 
 	finaldata, finallabels = choose_cluster_images_3D(data, target, num_images_per_digit, seed=seed)
-	
+
 	with open(pathstr + '/CIFAR10_numperdigit_' + str(num_images_per_digit) + '_numdigits_' + str(class_labels.shape[0]) + '_seed_' + str(seed) + '.pkl','wb') as f:
 		pkl.dump((finaldata, finallabels), f)
 
@@ -322,9 +322,9 @@ def create_and_store_CelebAdataset(pathstr, classes =\
 		pkl.dump((finaldata, finallabels), f)
 
 
-def create_and_store_DiabeticRetinopathydataset(pathstr, inputdir, classes=[0, 2, 4],\
- choose_indices=False, img_size=32, num_images_to_choose_from=[2000, 2000, 353],\
-  num_images_per_class=[1000, 1000, 353], left_eye=True, train=True, seed=0.0):
+def create_and_store_DiabeticRetinopathydataset(pathstr, inputdir, classes=[0, 2, [3, 4]],\
+ choose_indices=False, img_size=256, num_images_to_choose_from=[2000, 2000, 778],\
+  num_images_per_class=[1000, 1000, 778], left_eye=True, train=True, seed=0.0):
 	torch.manual_seed(seed)
 	dtype = torch.double
 	imagedir = None
@@ -357,43 +357,107 @@ def create_and_store_DiabeticRetinopathydataset(pathstr, inputdir, classes=[0, 2
 	
 	start_index = 0
 	for i in range(len(classes)):
-		class_images = label_file[label_file[:, 1] == str(classes[i])][:, 0]
+		class_indices = None
+		if isinstance(classes[i], type(1)):
+			class_indices = label_file[:, 1] == str(classes[i])
+		elif isinstance(classes[i], type([])):
+			assert(len(classes[i]) > 0)
+			class_indices = label_file[:, 1] == str(classes[i][0])
+			for sub_class in classes[i][1:]:
+				class_indices += (label_file[:, 1] == str(sub_class))
+		else:
+			print("Invalid classes")
+			assert(1==0)
+
+		class_images = label_file[class_indices][:, 0]
 		matched_indices = matcher(class_images)
 		selected_indices = matched_indices[matched_indices]
 		selected_indices[num_images_to_choose_from[i]:] = False
 		matched_indices[matched_indices] = selected_indices
 
-		class_indices = label_file[:, 1] == str(classes[i])
 		class_indices[class_indices] = matched_indices
 		all_indices[start_index:(start_index+num_images_to_choose_from[i])] = torch.tensor(class_indices).nonzero()[:, 0]
 		
 		images_for_given_eye = class_images[matched_indices]
 		all_image_names += list(images_for_given_eye)
 
-		all_labels[start_index:(start_index+num_images_to_choose_from[i])] = classes[i]
+		if isinstance(classes[i], type(1)):
+			all_labels[start_index:(start_index+num_images_to_choose_from[i])] = classes[i]
+		else:
+			all_labels[start_index:(start_index+num_images_to_choose_from[i])] = classes[i][-1]
+
 		start_index += num_images_to_choose_from[i]
 
 	all_images = []
 	for image_name in all_image_names:
 		image_file_path = imagedir + "/" + image_name + '.jpeg'
 		read_image = cv2.imread(image_file_path, 1)
-		read_image = cv2.resize(read_image, (img_size, img_size), interpolation=cv2.INTER_AREA)
 		read_image = cv2.cvtColor(read_image, cv2.COLOR_BGR2RGB)
 		all_images.append(read_image)
 
 	all_images = np.array(all_images)
 	all_image_names = np.array(all_image_names)
 
-	all_images = torch.tensor(all_images).to(dtype)
+	# all_images = torch.tensor(all_images).to(dtype)
 	all_indices = all_indices.to(torch.int)
 	all_labels = torch.tensor(all_labels).to(dtype)
 
+	transform1 = transforms.Compose([
+		transforms.CenterCrop((1600, 2400)),
+		transforms.Resize((img_size, img_size)),
+		transforms.ToTensor(),
+	])
+	transform2 = transforms.ToPILImage()
+	
+	# all_images  = all_images.to(torch.uint8).clone()
+	all_images_transformed = torch.zeros([all_images.shape[0], 3, img_size, img_size])\
+	.to(torch.uint8)
+	for image_idx in range(all_images.shape[0]):
+		print(image_idx)
+		all_images_transformed[image_idx] = transform1(transform2(\
+			torch.tensor(all_images[image_idx]).to(torch.uint8).transpose(2, 1).transpose(1, 0)\
+			.clone()))
+
 	all_label_number_map = {}
 	for i in range(len(classes)):
-		all_label_number_map[classes[i]] = num_images_per_class[i]
+		if isinstance(classes[i], type(1)):
+			all_label_number_map[classes[i]] = num_images_per_class[i]
+		else:
+			all_label_number_map[classes[i][-1]] = num_images_per_class[i]
 
-	with open(pathstr + '/Diabetic_Retinopathy_all' + '_seed_' + str(seed) + '.pkl','wb') as f:
-		pkl.dump((all_images, (all_indices, (all_image_names, (all_labels, all_label_number_map)))), f)
+	with open(pathstr + '/Diabetic_Retinopathy_transformed_all' + '_seed_' + str(seed) + '.pkl','wb') as f:
+		pkl.dump((all_images_transformed, (all_indices, (all_image_names, (all_labels, all_label_number_map)))), f)
+	
+	# print("Starting Kmeans++")
+	# finaldata = None
+	# finallabels = None
+	# choose_indices_str = None
+
+	# if choose_indices:
+	# 	finaldata, finallabels = choose_cluster_image_indices(all_images_transformed, all_labels, all_indices, all_label_number_map, seed=seed, dimension=3)
+	# 	choose_indices_str = '_indices_'
+	# else:
+	# 	finaldata, finallabels = choose_cluster_images_3D(all_images_transformed, all_labels, all_label_number_map, seed=seed)
+	# 	choose_indices_str = '_images_'
+	
+	# all_label_number_map_str = "_"
+	# for i in range(len(classes)):
+	# 	if isinstance(classes[i], type(1)):
+	# 		all_label_number_map_str += str(classes[i]) + "-" +\
+	# 		 str(all_label_number_map[classes[i]]) + "_"
+	# 	else:
+	# 		all_label_number_map_str += str(classes[i]) + "-" +\
+	# 		 str(all_label_number_map[classes[i][-1]]) + "_"
+	
+	# with open(pathstr + '/Diabetic_Retinopathy_transformed_numperclass_' + all_label_number_map_str\
+	#  + choose_indices_str + '_seed_' + str(seed) + '.pkl','wb') as f:
+	# 	pkl.dump((finaldata, finallabels), f)
+
+
+def gen_kmeansplusplus_retinopathydataset(pathstr, inputfile, choose_indices = True, classes=[0, 2, [3, 4]],\
+ seed=0):
+	f = open(pathstr + '/' + inputfile, 'rb')
+	all_images_transformed, (all_indices, (all_image_names, (all_labels, all_label_number_map))) = pkl.load(f)
 	
 	print("Starting Kmeans++")
 	finaldata = None
@@ -401,21 +465,24 @@ def create_and_store_DiabeticRetinopathydataset(pathstr, inputdir, classes=[0, 2
 	choose_indices_str = None
 
 	if choose_indices:
-		finaldata, finallabels = choose_cluster_image_indices(all_images, all_labels, all_indices, all_label_number_map, seed=seed, dimension=3)
+		finaldata, finallabels = choose_cluster_image_indices(all_images_transformed, all_labels, all_indices, all_label_number_map, seed=seed, dimension=3)
 		choose_indices_str = '_indices_'
 	else:
-		finaldata, finallabels = choose_cluster_images_3D(all_images, all_labels, all_label_number_map, seed=seed)
+		finaldata, finallabels = choose_cluster_images_3D(all_images_transformed, all_labels, all_label_number_map, seed=seed)
 		choose_indices_str = '_images_'
 	
 	all_label_number_map_str = "_"
 	for i in range(len(classes)):
-		all_label_number_map_str += str(classes[i]) + "-" +\
-		 str(all_label_number_map[classes[i]]) + "_"
+		if isinstance(classes[i], type(1)):
+			all_label_number_map_str += str(classes[i]) + "-" +\
+			 str(all_label_number_map[classes[i]]) + "_"
+		else:
+			all_label_number_map_str += str(classes[i]) + "-" +\
+			 str(all_label_number_map[classes[i][-1]]) + "_"
 	
-	with open(pathstr + '/Diabetic_Retinopathy_numperclass_' + all_label_number_map_str\
-	 + choose_indices_str + '_seed_' + str(seed) + '.pkl','wb') as f:
-		pkl.dump((finaldata, finallabels), f)
-
+	with open(pathstr + '/Diabetic_Retinopathy_transformed_numperclass_' + all_label_number_map_str\
+	 + choose_indices_str + '_seed_' + str(seed) + '.pkl','wb') as g:
+		pkl.dump((finaldata, finallabels), g)
 
 def gen_kmeansplusplus_CelebAdataset(pathstr, inputfile, choose_indices = True,\
  num_images_per_class=1000, num_classes=5, seed=0):
@@ -455,7 +522,7 @@ def transform_labels_2_zero_idx(inputfile):
 def add_noise_and_save_again(pathstr, dataset, num_images_per_digit, num_digits, seed, mean, sigma, noise_to_all_channels=False):
 	torch.manual_seed(seed)
 	dtype = torch.double
-	
+
 	if dataset == 'CelebA':
 		file_name = dataset + '_numperclass_' + str(num_images_per_digit) + '_numclasses_' +\
 		 str(num_digits) + '_images_' '_seed_' + str(int(seed)) + '.pkl'
@@ -1084,6 +1151,16 @@ ten_img_class_0_1 = torch.tensor(ten_img_class_0).clone()
 save_image(transform(transform2(ten_img_class_0_1.to(torch.uint8).clone())), "./ten_img_class_0.jpeg", nrow=1, normalize=True)
 ten_img_class_0_1 = torch.tensor(ten_img_class_0).clone().transpose(2, 1).transpose(1, 0)
 save_image(transform(transform2(ten_img_class_0_1.to(torch.uint8).clone())), "./ten_img_class_0.jpeg", nrow=1, normalize=True)
+cv2.COLOR_BGR2RGB --> tensor --> to(torch.uint8) --> clone() --> CustomMNISTdigit(*, *, transform)
+--> save_image(*, *, *, normalize=True)
+^^ No need to transpose(2, 1).transpose(1, 0) for a single img or transpose(3, 2).transpose(2, 1)
+Need to transpose if saving directly or to fixed data then 
+transform(transform2(img.transpose().transpose().to(torch.uint8).clone())) 
+transform1 = transforms.Compose([
+    transforms.CenterCrop((1600, 2400)),
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+])
 '''
 
 
